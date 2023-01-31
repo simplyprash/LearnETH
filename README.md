@@ -1,2 +1,2 @@
 # LearnETH
-Blockchain based E-learning platform built on Ethereum
+Blockchain based E-learning platform built on Ethereum.
