@@ -1,5 +1,16 @@
 // SPDX-License-Identifier: MIT
 
+//   /$$                                               /$$$$$$$$ /$$$$$$$$ /$$   /$$
+//  | $$                                              | $$_____/|__  $$__/| $$  | $$
+//  | $$        /$$$$$$   /$$$$$$   /$$$$$$  /$$$$$$$ | $$         | $$   | $$  | $$
+//  | $$       /$$__  $$ |____  $$ /$$__  $$| $$__  $$| $$$$$      | $$   | $$$$$$$$
+//  | $$      | $$$$$$$$  /$$$$$$$| $$  \__/| $$  \ $$| $$__/      | $$   | $$__  $$
+//  | $$      | $$_____/ /$$__  $$| $$      | $$  | $$| $$         | $$   | $$  | $$
+//  | $$$$$$$$|  $$$$$$$|  $$$$$$$| $$      | $$  | $$| $$$$$$$$   | $$   | $$  | $$
+//  |________/ \_______/ \_______/|__/      |__/  |__/|________/   |__/   |__/  |__/
+
+// @DEV: QAZIPOLO.ETH // ------------------------------------------------------------- //                                                                              
+
 pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
@@ -363,7 +374,6 @@ contract LearnETH is ERC721, Ownable {
         require(block.timestamp.sub(monthDuration) < paymentDetails[_paymentId].paidAt, "Refund eligibility duration lapsed");
 
         paymentDetails[_paymentId].status = 2;
-        // To do - remove courseId from enrolledCourses array
         nodeDetails[_tokenId].balance = nodeDetails[_tokenId].balance.add(paymentDetails[_paymentId].paidAmount);
         emit refundIssued(_paymentId);
 
@@ -683,4 +693,3 @@ contract LearnETH is ERC721, Ownable {
     }
     
 }
-
