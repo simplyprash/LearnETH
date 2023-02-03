@@ -4,21 +4,19 @@ pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 
 contract LearnETH is ERC721, Ownable {
-    using Counters for Counters.Counter;
     using SafeMath for uint256;
     using Strings for uint256;
-    Counters.Counter private _tokenIdCounter;
+    uint256 private _tokenIdCounter;
     uint256 public partnerFee;
 
     bool private initiated;
     address private topNodeWallet;
-    uint256 private monthDuration = 2629743;
+    uint256 private monthDuration = 2592000;
 	
     uint256 public currentPartnerCourseId;
     
@@ -92,7 +90,7 @@ contract LearnETH is ERC721, Ownable {
 
     constructor() ERC721("LearnETH", "LETH") {}
 
-    event partnerAdded(uint256 partnerTokenId, uint256 referrerTokenId, uint256 father1, uint256 level, uint256 position);
+    event partnerAdded(uint256 partnerTokenId, uint256 referrerTokenId, uint256 father1, uint256 level, uint256 position, uint256 subscribedTill);
     event studentAdded(uint256 studentTokenId, uint256 referrerTokenId, uint256 father);
     event instructorAdded(uint256 instructorTokenId, uint256 referrerTokenId, uint256 father);
     event courseAdded(uint256 courseId, string courseName, uint256 instructorTokenId);
@@ -112,7 +110,7 @@ contract LearnETH is ERC721, Ownable {
     // READ FUNCTIONS // ------------------------------------------------------------- //
 
     function totalSupply() public view returns(uint256) {
-        uint256 supply = _tokenIdCounter.current();
+        uint256 supply = _tokenIdCounter;
         return supply;
     }
 
@@ -122,8 +120,8 @@ contract LearnETH is ERC721, Ownable {
     function initiatePartnerNetwork() external onlyOwner {
         require(!initiated,"Already Initited");
         require(msg.sender == owner(), "Only owner can initiate the network");
-        _tokenIdCounter.increment();
-        uint256 tokenId = _tokenIdCounter.current();
+        _tokenIdCounter+=1;
+        uint256 tokenId = _tokenIdCounter;
         _safeMint(msg.sender, tokenId);
         nodeDetails[tokenId].nodeType = 5; //Special Type for parent node
         nodeDetails[tokenId].level = 1;
@@ -131,14 +129,13 @@ contract LearnETH is ERC721, Ownable {
         partnerNodeTokenMapping[1][1] = tokenId;
         initiated = true;
         
-        emit partnerAdded(tokenId, 0, 0, 1, 1);
+        emit partnerAdded(tokenId, 0, 0, 1, 1, 0);
+        _tokenIdCounter+=5781;
     }
 
     //assign special status to a partner
     function assignPriviledge(uint256 _tokenId, uint8 _nodeType) external onlyOwner {
         require(msg.sender == owner(), "Only owner can assign special priviledge");
-        require(nodeDetails[_tokenId].nodeType == 2, "Node is a partner");
-        require(_nodeType == 3 || _nodeType == 4,"Incorrect node Type values");
         nodeDetails[_tokenId].nodeType = _nodeType;
     }
 
@@ -159,9 +156,10 @@ contract LearnETH is ERC721, Ownable {
     // This method allows Contract Owner to withdraw balance to topWallet
     function withdrawTopWallet() external onlyOwner{
         uint256 bal = nodeDetails[1].balance;
-        require(nodeDetails[1].balance != 0,"No balance to withdraw");
+        require(bal > 0,"No balance to withdraw");
         nodeDetails[1].balance = 0;
-        payable(topNodeWallet).transfer(bal);
+        (bool sent, ) = topNodeWallet.call{value: bal}("");
+        require(sent, "Failed to send Ether");
     }
 
     // To be scheduled for 1st of each month
@@ -190,8 +188,8 @@ contract LearnETH is ERC721, Ownable {
             _personalReferrer = nodeDetails[_referrerTokenId].father1;
         }
 
-        _tokenIdCounter.increment();
-        uint256 tokenId = _tokenIdCounter.current();
+        _tokenIdCounter+=1;
+        uint256 tokenId = _tokenIdCounter;
         _safeMint(msg.sender, tokenId);
         (uint256 _level, uint256 _position) = getNextNode(currentFather);
         uint256 f_position;
@@ -213,8 +211,7 @@ contract LearnETH is ERC721, Ownable {
         partnerNodeTokenMapping[_level][_position] = tokenId;
         nodeDetails[_personalReferrer].totalRecruits+=1;
 
-        emit partnerAdded(tokenId, _personalReferrer, _father1, _level, _position);
-        emit partnerRenewal(tokenId, block.timestamp.add(_duration));
+        emit partnerAdded(tokenId, _personalReferrer, _father1, _level, _position, block.timestamp.add(_duration));
         distributePartnerCourseFee(tokenId, _months, msg.value);           
            
     }
@@ -225,8 +222,8 @@ contract LearnETH is ERC721, Ownable {
 
         uint256 currentFather = nodeDetails[_instructorTokenId].father1;
 
-        _tokenIdCounter.increment();
-        uint256 tokenId = _tokenIdCounter.current();
+        _tokenIdCounter+=1;
+        uint256 tokenId = _tokenIdCounter;
         _safeMint(msg.sender, tokenId);
         (uint256 _level, uint256 _position) = getNextNode(currentFather);
         uint256 f_position;
@@ -248,8 +245,7 @@ contract LearnETH is ERC721, Ownable {
         partnerNodeTokenMapping[_level][_position] = tokenId;
         nodeDetails[currentFather].totalRecruits+=1;
 
-        emit partnerAdded(tokenId, currentFather, _father1, _level, _position);   
-        emit partnerRenewal(tokenId, block.timestamp.add(_duration));
+        emit partnerAdded(tokenId, currentFather, _father1, _level, _position, block.timestamp.add(_duration));   
         distributePartnerCourseFee(tokenId, _months, msg.value);  
 
     }
@@ -281,8 +277,7 @@ contract LearnETH is ERC721, Ownable {
         partnerNodeTokenMapping[_level][_position] = _tokenId;
         nodeDetails[currentFather].totalRecruits+=1;
         
-        emit partnerAdded(_tokenId, currentReferrerTokenId, _father1, _level, _position);    
-        emit partnerRenewal(_tokenId, block.timestamp.add(_duration));
+        emit partnerAdded(_tokenId, currentReferrerTokenId, _father1, _level, _position, block.timestamp.add(_duration));    
         distributePartnerCourseFee(_tokenId, _months, msg.value);    
     }
 
@@ -290,7 +285,7 @@ contract LearnETH is ERC721, Ownable {
 
     function enrolForPartnerCourse(uint256 _tokenId, uint256 _months) public payable {
         require(msg.sender == ownerOf(_tokenId), "Not the owner of tokenId");
-        require(nodeDetails[_tokenId].nodeType == 2,"Not a partner");
+        require(nodeDetails[_tokenId].nodeType == 2 || nodeDetails[_tokenId].nodeType == 4,"Not a partner");
         uint256 _amount = msg.value;
         uint256 _duration = _months.mul(monthDuration);
         nodeDetails[_tokenId].subscribedTill = nodeDetails[_tokenId].subscribedTill.add(_duration);
@@ -302,8 +297,8 @@ contract LearnETH is ERC721, Ownable {
 
     function registerStudent(uint256 _referrerTokenId) public {
         require(_exists(_referrerTokenId), "Not a valid referrer Id");
-        _tokenIdCounter.increment();
-        uint256 tokenId = _tokenIdCounter.current();
+        _tokenIdCounter+=1;
+        uint256 tokenId = _tokenIdCounter;
         _safeMint(msg.sender, tokenId);
         uint256 f_tokenId  = _referrerTokenId;
         nodeDetails[tokenId].nodeType = 0;
@@ -328,8 +323,8 @@ contract LearnETH is ERC721, Ownable {
         uint256 _personalReferrer = nodeDetails[_instructorTokenId].personalReferrer;
         uint256 _father1 = nodeDetails[_instructorTokenId].father1;
 
-        _tokenIdCounter.increment();
-        uint256 _studentTokenId = _tokenIdCounter.current();
+        _tokenIdCounter+=1;
+        uint256 _studentTokenId = _tokenIdCounter;
         _safeMint(msg.sender, _studentTokenId);
 
         nodeDetails[_studentTokenId].nodeType = 0;
@@ -365,7 +360,7 @@ contract LearnETH is ERC721, Ownable {
         require(msg.sender == ownerOf(_tokenId), "Invalid call");
         require(_tokenId == paymentDetails[_paymentId].paidBy, "Course not paid by the caller");
         require(paymentDetails[_paymentId].status == 0,"Already distributed or refunded");
-        require(block.timestamp.sub(monthDuration) > paymentDetails[_paymentId].paidAt, "Refund eligibility duration lapsed");
+        require(block.timestamp.sub(monthDuration) < paymentDetails[_paymentId].paidAt, "Refund eligibility duration lapsed");
 
         paymentDetails[_paymentId].status = 2;
         // To do - remove courseId from enrolledCourses array
@@ -382,8 +377,8 @@ contract LearnETH is ERC721, Ownable {
 
     function registerInstructor(uint256 _referrerTokenId) public {
         require(_exists(_referrerTokenId), "Not a valid referrer Id");
-        _tokenIdCounter.increment();
-        uint256 tokenId = _tokenIdCounter.current();
+        _tokenIdCounter+=1;
+        uint256 tokenId = _tokenIdCounter;
         _safeMint(msg.sender, tokenId);
         uint256 _node = _referrerTokenId;
         if(nodeDetails[_node].nodeType >= 2) {
@@ -411,8 +406,8 @@ contract LearnETH is ERC721, Ownable {
 
         uint256 _father1 = nodeDetails[_studentTokenId].father1;
 
-        _tokenIdCounter.increment();
-        uint256 _instructorTokenId = _tokenIdCounter.current();
+        _tokenIdCounter+=1;
+        uint256 _instructorTokenId = _tokenIdCounter;
         _safeMint(msg.sender, _instructorTokenId);
 
         nodeDetails[_instructorTokenId].nodeType = 1;
@@ -430,8 +425,8 @@ contract LearnETH is ERC721, Ownable {
         uint256 _personalReferrer = nodeDetails[_partnerTokenId].personalReferrer;
         uint256 _father1 = nodeDetails[_partnerTokenId].father1;
 
-        _tokenIdCounter.increment();
-        uint256 _instructorTokenId = _tokenIdCounter.current();
+        _tokenIdCounter+=1;
+        uint256 _instructorTokenId = _tokenIdCounter;
         _safeMint(msg.sender, _instructorTokenId);
 
         nodeDetails[_instructorTokenId].nodeType = 1;
@@ -502,9 +497,11 @@ contract LearnETH is ERC721, Ownable {
     function withdrawBalance(uint256 _tokenId) public {
         require(msg.sender == ownerOf(_tokenId) && _tokenId != 1, "Not Authorized");
         uint256 bal = nodeDetails[_tokenId].balance;
-        require(nodeDetails[_tokenId].balance != 0,"No balance to withdraw");
+        require(bal > 0,"No balance to withdraw");
         nodeDetails[_tokenId].balance = 0;
-        payable(msg.sender).transfer(bal);
+
+        (bool success, ) = msg.sender.call{value: bal}("");
+        require(success, "Withdrawal failed.");
 		emit balanceWithdraw(_tokenId, bal);
     }
 
@@ -581,7 +578,12 @@ contract LearnETH is ERC721, Ownable {
     function isEligibleForDistribution(uint256 _tokenId, uint _depth) internal view returns(bool) {
         uint256 nodeType = nodeDetails[_tokenId].nodeType;
         if(nodeType == 0 || nodeType == 1 ) { return false;} //unlikely scenario
-        else if(nodeType > 2) {return true;} //exempted from partner requirements
+        else if(nodeType == 3) {return true;} //exempted from partner requirements
+        else if(nodeType == 4) {
+            uint256 subscribedTill = nodeDetails[_tokenId].subscribedTill;
+            if(subscribedTill < block.timestamp) {return false;}
+            else return true;
+        }
         else {
 
             uint256 subscribedTill = nodeDetails[_tokenId].subscribedTill;
@@ -618,7 +620,7 @@ contract LearnETH is ERC721, Ownable {
         for(uint i=1; i<=9; i++) {
             if(_father1 == 1) {break;}
             else {
-                if(true) {
+                if(isEligibleForDistribution(_father1,i)) {
                     nodeDetails[_father1].balance+=_share;
                     emit feeDistributed(_paymentId, _father1, _share, _type);
                     _amount-=_share;
@@ -638,7 +640,7 @@ contract LearnETH is ERC721, Ownable {
         for(uint i=1; i<=9; i++) {
             if(_father1 == 1) {break;}
             else {
-                if(true) {
+                if(isEligibleForDistribution(_father1,i)) {
                     nodeDetails[_father1].balance+=_share;
                     emit partnerFeeDistributed(_tokenId, _father1, _months, _share, 0);
                     _amount-=_share;
@@ -651,5 +653,34 @@ contract LearnETH is ERC721, Ownable {
         }        
         nodeDetails[1].balance += _amount;
     }
+
+    // FUNCTIONS OVERRIDES // ------------------------------------------------------------- //
+
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        string memory memberType; 
+        
+        if(nodeDetails[tokenId].nodeType == 0) {
+            memberType = "Student";
+        }
+        else if(nodeDetails[tokenId].nodeType == 1) {
+            memberType = "Instructor";
+        }
+        else memberType = "Partner";
+
+        string memory json = Base64.encode(
+            bytes(
+                string(
+                    abi.encodePacked('{"name": "LearnETH #', Strings.toString(tokenId), '", "description": "LearnETH is a Self-governed global eLearning marketplace, where people can teach or gain skills and knowledge for a fee or for free.", "image": "ipfs://bafybeig7mbjsf2yd6q44xigohksdmokmu7jqf3c2m5d6i4ajtfluqeevee/learnETH.png" , "attributes": [{"trait_type": "Member Type", "value": "',memberType,'"}]}'
+                    )
+                )
+            )
+        );
+
+        string memory output = string(
+            abi.encodePacked("data:application/json;base64,", json)
+        );
+        return output;
+    }
     
 }
+
